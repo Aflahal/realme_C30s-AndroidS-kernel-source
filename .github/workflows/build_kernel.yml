@@ -1,0 +1,806 @@
+name: Kernel Build
+
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      defconfig:
+        description: 'Kernel defconfig name (e.g., RMX3235_defconfig)'
+        required: true
+        default: 'RMX3231_defconfig'
+      isPermissive:
+        description: 'check this option to make kernel permissive'
+        required: true
+        type: boolean
+        default: false        
+      build_kernel_module:
+        description: "set to true if you want to build BSP kernel module file"
+        required: true
+        type: boolean
+        default: false
+      build_use_compiled_dtb_from_this_source:
+        description: 'check this option to use sp9863a.dtb compiled from this source as it DTB,uncheck to keep the DTB from the stock boot.img'
+        required: true
+        type: boolean
+        default: false
+      build_fingerprint:
+        description: 'set build fingerprint for boot.img, needed when we sign it using avbtool'
+        required: true
+        type: string
+        default: 'realme/RMX3235/RED8FA:11/RP1A.201005.001/1653291341038:user/release-keys'
+      build_os_version:
+        description: 'set build os version for boot.img, needed when we sign it using avbtool'
+        required: true
+        type: number
+        default: 11
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: kernel-4.14
+
+    env:
+      # General Build Variables
+      KERNEL_ROOT: ${{ github.workspace }}/kernel-4.14
+      ARCH: arm64
+      TZ: Asia/Jakarta
+      KBUILD_BUILD_USER: 'Aflahal'
+      
+      # Ccache Flags
+      USE_CCACHE: 1
+      CCACHE_EXEC: /usr/bin/ccache
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+
+      # Toolchain Paths
+      CLANG_BASE: ${{ github.workspace }}/toolchains/clang-r383902b
+      GCC_64_BASE: ${{ github.workspace }}/toolchains/gcc-14.3
+      GCC_32_BASE: ${{ github.workspace }}/toolchains/gcc-14.3
+
+      # Main Compiler and Cross-Compile Variables
+      CC: "ccache clang"
+      CROSS_COMPILE: "${{ github.workspace }}/toolchains/gcc-14.3/bin/aarch64-none-linux-gnu-"
+      CROSS_COMPILE_ARM32: "${{ github.workspace }}/toolchains/gcc-14.3/bin/arm-none-linux-gnueabihf-"
+
+      # UNISOC Board-Specific Properties (used by (.ko) Makefiles)
+      # Android Build
+      BSP_BOARD_ARCH: arm64
+      BSP_BUILD_DT_OVERLAY: "y"
+      BSP_BUILD_ANDROID_OS: "y"
+      BSP_BUILD_FAMILY: "sharkl3"
+      BSP_BOARD_NAME: "sharkl3"
+      BSP_KERNEL_VERSION: "kernel4.14"
+
+      # PowerVR
+      TARGET_KERNEL_ARCH: "arm64"
+      BSP_SYSTEM_VERSION: "sharkl3"
+      BSP_PRODUCT_NAME: "sharkl3"
+      TARGET_BOARD: "sharkl3"
+      TARGET_BOARD_PLATFORM: "sharkl3"
+      PLATFORM_RELEASE: "11"
+      PLATFORM_VERSION: "11"
+      PLATFORM_VERSION_CODENAME: "R"
+      PLATFORM_CODENAME: "R"
+      BSP_ROOT_DIR: "${{ github.workspace }}/kernel-4.14"
+      BSP_OUT_PLATFORM: "${{ github.workspace }}/out"
+      BSP_KERNEL_OUT: "${{ github.workspace }}/out"
+      NDK_PLATFORMS_ROOT: "${{ github.workspace }}/prebuilts/ndk/platforms"
+
+      # WCN
+      BSP_BOARD_UNISOC_WCN_SOCKET: "sipc"
+      BSP_BOARD_WLAN_DEVICE: "sc2332"
+
+      # Camera
+      BSP_BOARD_CAMERA_MODULE_ISP_ADAPT_VERSION: "sharkl3"
+      BSP_BOARD_CAMERA_MODULE_ISP_VERSION: "isp2.6"
+      BSP_BOARD_CAMERA_MODULE_CSI_VERSION: "receiver_r2p0"
+      BSP_BOARD_CAMERA_MODULE_CPP_VERSION: "lite_r4p0"
+
+      # All Modules in /socko.img
+      BSP_KERNEL_MODULE_LIST: |
+            sprd_sensor:drivers/modules/common/camera/sensor:NONE
+            sprd_flash_drv:drivers/modules/common/camera/flash/flash_drv:NONE
+            flash_ic_ocp8135b:drivers/modules/common/camera/flash/ocp8135b:NONE
+            sprd_camera:drivers/modules/common/camera/core:NONE
+            sprd_cpp:drivers/modules/common/camera/cpp:NONE
+            pvrsrvkm:drivers/modules/kernel5.4/gpu/rogue/driver/build/linux/sharkl3_android:NONE
+            chipone-tddi:drivers/modules/kernel5.4/input/touchscreen/chipone_tddi_k630:NONE
+            focaltech_ft8756_spi_ts:drivers/modules/kernel5.4/input/touchscreen/focaltech_ft8756_spi:NONE
+            sprd_fm:drivers/modules/kernel5.4/wcn/fm/driver:NONE
+            sprdbt_tty:drivers/modules/kernel5.4/wcn/bluetooth/driver:NONE
+            microarray_fp:drivers/modules/kernel5.4/input/fingerprint/microarray:NONE
+            sunwave_sw9058g_fp:drivers/modules/kernel5.4/input/fingerprint/sunwave_sw9058g:NONE
+            tcs3430:drivers/modules/kernel5.4/input/misc/tcs3430:NONE
+            #sprdwl_ng:drivers/modules/kernel5.4/wcn/wlan:NONE
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Create build directories
+        run: |
+          mkdir -p "${{ github.workspace }}/out" "${{ github.workspace }}/build" "${{ github.workspace }}/toolchains" "${{ github.workspace }}/modules_out"
+
+      - name: Cache Toolchains
+        id: cache-toolchains
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/toolchains
+          key: ${{ runner.os }}-toolchains-v3
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-ccache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
+
+      - name: Setup System Dependencies
+        run: |
+          echo "[INFO]: Installing system requirements..."
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing \
+            git device-tree-compiler lz4 xz-utils zlib1g-dev zip make gcc g++ \
+            python3 python-is-python3 libncurses-dev flex bison gperf libssl-dev \
+            libelf-dev kmod pahole zstd libyaml-dev ccache
+
+      - name: Download and Set up Toolchains
+        if: steps.cache-toolchains.outputs.cache-hit != 'true'
+        run: |
+          echo "[INFO] Setting up Toolchains..."
+          cd "${{ github.workspace }}/toolchains"
+          
+          echo "--> Downloading Clang..."
+          mkdir -p clang-r383902b
+          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/0e9e7035bf8ad42437c6156e5950eab13655b26c/clang-r383902b.tar.gz -O clang.tar.gz
+          tar -xf clang.tar.gz -C clang-r383902b && rm clang.tar.gz
+          echo "--> Clang downloaded"
+
+          echo "--> Downloading GCC 14.3..."
+          mkdir -p gcc-14.3
+          wget -q https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-aarch64-none-linux-gnu.tar.xz -O gcc.tar.xz
+          tar -xf gcc.tar.xz -C gcc-14.3 --strip-components=1 && rm gcc.tar.xz
+          echo "--> GCC downloaded"
+
+          echo "--> Setting permissions..."
+          chmod +x ${{ env.CLANG_BASE }}/bin/*
+          chmod +x ${{ env.GCC_64_BASE }}/bin/*
+          echo "--> Done"
+
+      - name: Set up PATH and ccache
+        run: |
+          echo "${{ env.CLANG_BASE }}/bin" >> $GITHUB_PATH
+          echo "${{ env.GCC_64_BASE }}/bin" >> $GITHUB_PATH
+          
+          echo "[INFO] Configuring ccache..."
+          ccache -M 5G
+          ccache -z
+
+      - name: Set build metadata
+        run: |
+          set -euo pipefail
+          echo "[INFO]: Setting up build metadata..."
+          
+          BUILD_HOST="$(. /etc/os-release && echo "${NAME// /}-${VERSION_ID}")"
+          BUILD_TIMESTAMP="$(LC_ALL=C date '+%a %b %d %T %Z %Y')"
+
+          echo "KBUILD_BUILD_HOST=$BUILD_HOST" >> "$GITHUB_ENV"
+          echo "KBUILD_BUILD_TIMESTAMP=$BUILD_TIMESTAMP" >> "$GITHUB_ENV"
+
+          echo "--> KBUILD_BUILD_USER      = $KBUILD_BUILD_USER"
+          echo "--> KBUILD_BUILD_HOST      = $BUILD_HOST"
+          echo "--> KBUILD_BUILD_TIMESTAMP = $BUILD_TIMESTAMP"
+
+      - name: Write Shared Make Arguments
+        run: |
+          # Every step runs in its own shell, so share the make arguments via a sourced file
+          cat > "${RUNNER_TEMP}/make_args.sh" <<'EOF'
+          SRC="${GITHUB_WORKSPACE}/kernel-4.14"
+          OUT="${GITHUB_WORKSPACE}/out"
+          MOD_OUT="${GITHUB_WORKSPACE}/modules_out"
+
+          TOOLCHAIN_ARGS=(
+            LLVM=1
+            LLVM_IAS=1
+            ARCH="${ARCH}"
+            CC="${CC}"
+            LD="ld.lld"
+            AR="llvm-ar"
+            NM="llvm-nm"
+            OBJCOPY="llvm-objcopy"
+            OBJDUMP="llvm-objdump"
+            STRIP="llvm-strip"
+            CROSS_COMPILE="${CROSS_COMPILE}"
+            CROSS_COMPILE_ARM32="${CROSS_COMPILE_ARM32}"
+            CLANG_TRIPLE="aarch64-none-linux-gnu-"
+          )
+          EOF
+
+      - name: Build Kernel, Modules, and DTBs
+        env:
+          FORCE_PERMISSIVE: ${{ inputs.isPermissive }}
+        run: |
+          set -euo pipefail
+          source "${RUNNER_TEMP}/make_args.sh"
+          echo -e "\n[INFO]: KERNEL BUILD STARTED..!\n"
+
+          # Ignore yaml
+          sed -i '/yamltree.o/d' scripts/dtc/Makefile
+          sed -i '/dt_to_yaml/d' scripts/dtc/dtc.c
+
+          echo "[INFO]: Generating config from ${{ inputs.defconfig }}"
+          make -C "${SRC}" O="${OUT}" "${TOOLCHAIN_ARGS[@]}" "${{ inputs.defconfig }}"
+
+          # SELinux mode
+          if [ "${FORCE_PERMISSIVE}" = "true" ]; then
+            echo "[INFO]: Enabling CONFIG_SECURITY_PERMISSIVE_SELINUX..."
+            scripts/config --file "${OUT}/.config" -e SECURITY_PERMISSIVE_SELINUX
+          else
+            echo "[INFO]: Disabling CONFIG_SECURITY_PERMISSIVE_SELINUX..."
+            scripts/config --file "${OUT}/.config" -d SECURITY_PERMISSIVE_SELINUX
+          fi
+
+          # Disable DWARF so every module (in-tree and out-of-tree) is small from the start
+          echo "[INFO]: Disabling debug info..."
+          scripts/config --file "${OUT}/.config" \
+            -d DEBUG_INFO \
+            -d DEBUG_INFO_DWARF4 \
+            -d DEBUG_INFO_REDUCED \
+            -d DEBUG_INFO_SPLIT
+
+          make -C "${SRC}" O="${OUT}" "${TOOLCHAIN_ARGS[@]}" olddefconfig
+
+          # Verify the final .config. A symbol that is not defined in any Kconfig file is silently dropped by olddefconfig.
+          if grep -q '^CONFIG_SECURITY_PERMISSIVE_SELINUX=y' "${OUT}/.config"; then
+            ACTUAL=true
+          else
+            ACTUAL=false
+          fi
+          if [ "${ACTUAL}" != "${FORCE_PERMISSIVE}" ]; then
+            echo "::error::CONFIG_SECURITY_PERMISSIVE_SELINUX is '${ACTUAL}' but isPermissive is '${FORCE_PERMISSIVE}'. Is the symbol defined in a Kconfig file?"
+            exit 1
+          fi
+          echo "--> SELinux: CONFIG_SECURITY_PERMISSIVE_SELINUX = ${ACTUAL}"
+
+          if grep -q '^CONFIG_DEBUG_INFO=y' "${OUT}/.config"; then
+            echo "::error::CONFIG_DEBUG_INFO is still enabled after olddefconfig"
+            exit 1
+          fi
+
+          make -C "${SRC}" O="${OUT}" -j"$(nproc)" "${TOOLCHAIN_ARGS[@]}" Image modules dtbs
+
+          echo -e "\n[INFO]: KERNEL BUILD FINISHED..!"
+          ccache -s
+
+      - name: Install In-Tree Kernel Modules
+        run: |
+          set -euo pipefail
+          source "${RUNNER_TEMP}/make_args.sh"
+          echo "[INFO]: Installing in-tree kernel modules (debug sections stripped)..."
+          make -C "${SRC}" O="${OUT}" "${TOOLCHAIN_ARGS[@]}" \
+            INSTALL_MOD_PATH="${MOD_OUT}" \
+            INSTALL_MOD_STRIP=1 \
+            modules_install
+
+      - name: Build and Install Out-of-Tree Modules
+        if: ${{ inputs.build_kernel_module == true }}
+        run: |
+          set -euo pipefail
+          source "${RUNNER_TEMP}/make_args.sh"
+
+          export BSP_KERNEL_PATH="${OUT}"
+          export BSP_MODULES_OUT="${OUT}"
+          export KBUILD_EXTRA_SYMBOLS=""
+          FAILED=()
+
+          mkdir -p "${GITHUB_WORKSPACE}/prebuilts/ndk/platforms/android-29/arch-arm64/usr/include"
+
+          # Board properties passed on the command line
+          BSP_ARGS=(
+            BSP_BUILD_ANDROID_OS="${BSP_BUILD_ANDROID_OS}"
+            BSP_BUILD_FAMILY="${BSP_BUILD_FAMILY}"
+            BSP_BUILD_DT_OVERLAY="${BSP_BUILD_DT_OVERLAY}"
+            BSP_KERNEL_VERSION="${BSP_KERNEL_VERSION}"
+            BSP_BOARD_UNISOC_WCN_SOCKET="${BSP_BOARD_UNISOC_WCN_SOCKET}"
+            BSP_BOARD_WLAN_DEVICE="${BSP_BOARD_WLAN_DEVICE}"
+            BSP_BOARD_CAMERA_MODULE_ISP_ADAPT_VERSION="${BSP_BOARD_CAMERA_MODULE_ISP_ADAPT_VERSION}"
+            BSP_BOARD_CAMERA_MODULE_ISP_VERSION="${BSP_BOARD_CAMERA_MODULE_ISP_VERSION}"
+            BSP_BOARD_CAMERA_MODULE_CSI_VERSION="${BSP_BOARD_CAMERA_MODULE_CSI_VERSION}"
+            BSP_BOARD_CAMERA_MODULE_CPP_VERSION="${BSP_BOARD_CAMERA_MODULE_CPP_VERSION}"
+          )
+
+          # pvrsrvkm uses its own Android-style build system and needs extra arguments
+          PVR_ARGS=(
+            BUILD=release
+            TARGET_BOARD_PLATFORM="${TARGET_BOARD_PLATFORM}"
+            TARGET_BOARD="${TARGET_BOARD}"
+            TARGET_KERNEL_ARCH="${TARGET_KERNEL_ARCH}"
+            BSP_SYSTEM_VERSION="${BSP_SYSTEM_VERSION}"
+            BSP_PRODUCT_NAME="${BSP_PRODUCT_NAME}"
+            PLATFORM_VERSION="${PLATFORM_VERSION}"
+            PLATFORM_VERSION_CODENAME="${PLATFORM_VERSION_CODENAME}"
+            BSP_ROOT_DIR="${BSP_ROOT_DIR}"
+            BSP_OUT_PLATFORM="${BSP_OUT_PLATFORM}"
+            BSP_KERNEL_OUT="${BSP_KERNEL_OUT}"
+            BSP_KERNEL_CROSS_COMPILE="${CROSS_COMPILE}"
+            KCFLAGS="-Wno-error=cast-function-type -Wno-error=enum-conversion -Wno-error=missing-field-initializers"
+          )
+
+          # NOTE: "set -e" is ignored inside a function that is called from an "if",
+          # so every command here must end with "|| return 1".
+          build_module() {
+            local ko_name="$1" rel_path="$2" extra_args="$3"
+            local driver_path="${SRC}/${rel_path}"
+            local mod_args=() mod_dir
+
+            if [ ! -f "${driver_path}/Makefile" ]; then
+              echo "[WARN]: Makefile not found for ${ko_name} at ${driver_path}, skipping"
+              return 0
+            fi
+
+            echo "--> Building ${ko_name}..."
+            if [ -n "${KBUILD_EXTRA_SYMBOLS}" ]; then
+              mod_args+=(KBUILD_EXTRA_SYMBOLS="${KBUILD_EXTRA_SYMBOLS}")
+            fi
+            if [ -n "${extra_args}" ] && [ "${extra_args}" != "NONE" ]; then
+              mod_args+=(${extra_args})
+            fi
+            if [ "${ko_name}" = "pvrsrvkm" ]; then
+              mod_args+=("${PVR_ARGS[@]}")
+            fi
+
+            make -C "${driver_path}" "${TOOLCHAIN_ARGS[@]}" "${BSP_ARGS[@]}" "${mod_args[@]}" modules || return 1
+
+            # Locate the build output directory of this module
+            if [ "${ko_name}" = "pvrsrvkm" ]; then
+              mod_dir="${OUT}/sharkl3/obj/modules/pvrsrvkm/target_aarch64/kbuild"
+              mkdir -p "${OUT}/pvrsrvkm" || return 1
+              cp "${mod_dir}/pvrsrvkm.ko" "${OUT}/pvrsrvkm/" || return 1
+              echo "--> pvrsrvkm.ko copied to ${OUT}/pvrsrvkm"
+            else
+              mod_dir="${OUT}/${ko_name}"
+            fi
+
+            # Export symbols so later modules can link against this one
+            if [ -f "${OUT}/${ko_name}/Module.symvers" ]; then
+              KBUILD_EXTRA_SYMBOLS="${KBUILD_EXTRA_SYMBOLS} ${OUT}/${ko_name}/Module.symvers"
+            fi
+
+            if [ ! -d "${mod_dir}" ]; then
+              echo "[ERROR]: build output directory not found: ${mod_dir}"
+              return 1
+            fi
+
+            echo "--> Installing ${ko_name} (debug sections stripped)..."
+            make -C "${OUT}" M="${mod_dir}" "${TOOLCHAIN_ARGS[@]}" \
+              INSTALL_MOD_PATH="${MOD_OUT}" \
+              INSTALL_MOD_STRIP=1 \
+              modules_install || return 1
+          }
+
+          # Read the list on fd 3 so commands inside the loop cannot swallow stdin
+          while IFS=: read -r KO_NAME REL_PATH EXTRA_ARGS <&3; do
+            case "${KO_NAME}" in ''|'#'*) continue ;; esac
+            if ! build_module "${KO_NAME}" "${REL_PATH}" "${EXTRA_ARGS}"; then
+              echo "::warning::${KO_NAME} failed to build or install"
+              FAILED+=("${KO_NAME}")
+            fi
+          done 3<<< "${BSP_KERNEL_MODULE_LIST}"
+
+          echo "[INFO]: Generating final module dependency files..."
+          KERNEL_VERSION="$(awk '{print $3}' "${OUT}/include/generated/utsrelease.h" | tr -d '"')"
+          mkdir -p "${MOD_OUT}/lib/modules/${KERNEL_VERSION}"
+          touch "${MOD_OUT}/lib/modules/${KERNEL_VERSION}/modules.builtin.modinfo"
+          depmod -a -b "${MOD_OUT}" "${KERNEL_VERSION}"
+
+          if [ "${#FAILED[@]}" -gt 0 ]; then
+            echo "::error::Out-of-tree modules failed: ${FAILED[*]}"
+            exit 1
+          fi
+
+      - name: Verify Modules Are Stripped
+        run: |
+          set -euo pipefail
+          MOD_OUT="${GITHUB_WORKSPACE}/modules_out"
+          bad=0
+          while IFS= read -r -d '' ko; do
+            # Capture first: "readelf | grep -q" can fail under pipefail (SIGPIPE) even on a match
+            sections="$(readelf -S "${ko}")"
+            if grep -q '\.debug_' <<< "${sections}"; then
+              echo "[ERROR]: debug sections found in ${ko}"
+              bad=1
+            fi
+          done < <(find "${MOD_OUT}" -name '*.ko' -print0)
+          [ "${bad}" -eq 0 ] || exit 1
+
+          echo "[INFO]: All modules are stripped. Largest modules:"
+          # sed instead of head: head exits early and can SIGPIPE the pipeline under pipefail
+          find "${MOD_OUT}" -name '*.ko' -printf '%s %f\n' | sort -rn | sed -n '1,10p'
+          
+      - name: Package DTB and DTBO files
+        run: |
+          echo "[INFO]: Packaging DTB and DTBO files..."
+          mkdir -p "${{ github.workspace }}/build/dtb"
+          
+          # The standard location for UNISOC DTBs is arch/arm64/boot/dts/sprd
+          DTB_SOURCE_DIR="${{ github.workspace }}/out/arch/${{ env.ARCH }}/boot/dts/sprd"
+          DTB_DEST_DIR="${{ github.workspace }}/build/dtb"
+          
+          if [ -d "$DTB_SOURCE_DIR" ]; then
+              echo "--> Found DTB directory at $DTB_SOURCE_DIR"
+              find "$DTB_SOURCE_DIR" -name "*.dtb" -exec cp {} "$DTB_DEST_DIR/" \;
+              find "$DTB_SOURCE_DIR" -name "*.dtbo" -exec cp {} "$DTB_DEST_DIR/" \;
+          else
+              echo "::warning:: Standard UNISOC DTB directory not found. Searching all of boot/dts..."
+              find "${{ github.workspace }}/out/arch/${{ env.ARCH }}/boot/dts" -name "*.dtb" -exec cp {} "$DTB_DEST_DIR/" \;
+              find "${{ github.workspace }}/out/arch/${{ env.ARCH }}/boot/dts" -name "*.dtbo" -exec cp {} "$DTB_DEST_DIR/" \;
+          fi
+
+          if [ -z "$(ls -A $DTB_DEST_DIR)" ]; then
+              echo "::error::No DTB or DTBO files were found after the build. Check the build logs."
+              exit 1
+          else
+              echo "--> DTB/DTBO files successfully packaged."
+              ls -lR $DTB_DEST_DIR
+          fi
+
+      - name: Package Kernel and All Modules
+        run: |
+          echo "[INFO]: Packaging kernel and module artifacts..."
+          cp "${{ github.workspace }}/out/arch/${{ env.ARCH }}/boot/Image" "${{ github.workspace }}/build/Image"
+          
+          cd "${{ github.workspace }}/modules_out"
+          
+          echo "[INFO]: Removing 'source' and 'build' symlinks to prevent zip recursion..."
+          find . -type l -name "source" -delete
+          find . -type l -name "build" -delete
+          
+          echo "[INFO]: Zipping all modules..."
+          zip -r9 "${{ github.workspace }}/build/modules-${{ github.run_id }}.zip" .
+          
+          echo "Kernel Image, Modules ZIP, and DTBs are ready in the 'build' directory."
+          ls -lR ${{ github.workspace }}/build
+
+      - name: Fetch boot tools (mkbootimg, avbtool)
+        run: |
+          set -euo pipefail
+          TOOLS="$GITHUB_WORKSPACE/tools"
+          BOOT_WORK="$GITHUB_WORKSPACE/boot_work"
+          mkdir -p "$TOOLS" "$BOOT_WORK"
+
+          echo "[INFO]: Cloning mkbootimg and avbtool from AOSP..."
+          git clone -q --depth 1 https://android.googlesource.com/platform/system/tools/mkbootimg "$TOOLS/mkbootimg"
+          git clone -q --depth 1 https://android.googlesource.com/platform/external/avb "$TOOLS/avb"
+
+          # Share paths with the following steps
+          echo "TOOLS=$TOOLS" >> "$GITHUB_ENV"
+          echo "BOOT_WORK=$BOOT_WORK" >> "$GITHUB_ENV"
+
+      - name: Download stock boot.img from GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STOCK_BOOT_TAG: stock-boot
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/prebuilt"
+
+          echo "[INFO]: Downloading boot.img from release '$STOCK_BOOT_TAG'..."
+          gh release download "$STOCK_BOOT_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern boot.img \
+            --dir "$GITHUB_WORKSPACE/prebuilt" \
+            --clobber
+
+          ls -l "$GITHUB_WORKSPACE/prebuilt/boot.img"
+
+      - name: Unpack stock boot.img
+        env:
+          STOCK_BOOT: ${{ github.workspace }}/prebuilt/boot.img
+        run: |
+          set -euo pipefail
+          [ -f "$STOCK_BOOT" ] || { echo "::error::prebuilt/boot.img not found in this repo"; exit 1; }
+
+          cd "$BOOT_WORK"
+          echo "[INFO]: Unpacking stock boot.img..."
+          python3 "$TOOLS/mkbootimg/unpack_bootimg.py" \
+            --boot_img "$STOCK_BOOT" --out unpacked --format=mkbootimg > mkargs.txt
+          echo "--> Stock mkbootimg arguments:"
+          cat mkargs.txt
+
+          # Header < v2 keeps the dtb appended to the kernel, so there is no
+          # separate dtb to reuse. Repacking with a new kernel would drop it.
+          if [ ! -s unpacked/dtb ]; then
+            echo "::error::Stock boot.img has no separate dtb (header < v2?). This workflow does not support it."
+            exit 1
+          fi
+
+          echo "--> Stock dtb: model='$(fdtget -t s unpacked/dtb / model 2>/dev/null || true)'" \
+               "compatible='$(fdtget -t s unpacked/dtb / compatible 2>/dev/null || true)'"
+
+      - name: Pack boot.img
+        env:
+          USE_COMPILED_DTB: ${{ inputs.build_use_compiled_dtb_from_this_source }}
+        run: |
+          set -euo pipefail
+          cd "$BOOT_WORK"
+ 
+          # Keep the kernel format identical to the stock one (gzip or raw)
+          if [ "$(head -c2 unpacked/kernel | xxd -p)" = "1f8b" ]; then
+            echo "--> Stock kernel is gzip, compressing the new Image"
+            gzip -9 -n -c "$GITHUB_WORKSPACE/build/Image" > new_kernel
+          else
+            echo "--> Stock kernel is a raw Image, using the new Image as is"
+            cp "$GITHUB_WORKSPACE/build/Image" new_kernel
+          fi
+ 
+          # sp9863a.dtb is the only base DTB built from this source (other outputs are overlays). Otherwise the DTB unpacked from the stock boot.img is kept.
+          DTB_ARG=()
+          if [ "$USE_COMPILED_DTB" = "true" ]; then
+            COMPILED_DTB="$GITHUB_WORKSPACE/build/dtb/sp9863a.dtb"
+            if [ ! -f "$COMPILED_DTB" ]; then
+              echo "::error::sp9863a.dtb not found in build/dtb. Available files:"
+              ls "$GITHUB_WORKSPACE/build/dtb"
+              exit 1
+            fi
+            echo "--> DTB: compiled from this source (sp9863a.dtb)"
+
+            # DT Header
+            python3 - "$COMPILED_DTB" dtb_with_header.img <<'PY'
+          import struct, sys
+
+          src, dst = sys.argv[1], sys.argv[2]
+          dtb = open(src, "rb").read()
+
+          MAGIC = 0xD7B7AB1E            # bytes D7 B7 AB 1E
+          if dtb[:4] == struct.pack(">I", MAGIC):
+              print("--> DTB already has a DT table header, keeping it as is")
+              open(dst, "wb").write(dtb)
+              sys.exit(0)
+
+          HDR_SIZE = 0x20               # dt_table_header
+          ENTRY_SIZE = 0x20             # dt_table_entry
+          DTB_OFFSET = HDR_SIZE + ENTRY_SIZE   # 0x40
+          total = DTB_OFFSET + len(dtb)
+
+          header = struct.pack(">8I",
+              MAGIC,        # magic
+              total,        # total_size
+              HDR_SIZE,     # header_size
+              ENTRY_SIZE,   # dt_entry_size
+              1,            # dt_entry_count
+              HDR_SIZE,     # dt_entries_offset
+              0x800,        # page_size
+              0)            # version
+          entry = struct.pack(">8I",
+              len(dtb),     # dt_size
+              DTB_OFFSET,   # dt_offset
+              0, 0,         # id, rev
+              0, 0, 0, 0)   # custom[4]
+
+          open(dst, "wb").write(header + entry + dtb)
+          print(f"--> Header added: dtb={len(dtb):#x} total={total:#x}")
+          PY
+
+            echo "--> Header check (first 64 bytes):"
+            head -c 64 dtb_with_header.img | xxd
+            ls -l unpacked/dtb "$COMPILED_DTB" dtb_with_header.img
+            DTB_ARG=(--dtb "$BOOT_WORK/dtb_with_header.img")
+          else
+            echo "--> DTB: stock (from stock boot.img)"
+          fi
+ 
+          # Stock arguments first, then --kernel/--dtb after them (argparse keeps the last value of a repeated option)
+          eval "python3 \"$TOOLS/mkbootimg/mkbootimg.py\" $(cat mkargs.txt) --kernel new_kernel ${DTB_ARG[*]:-} -o boot.img"
+          ls -l boot.img
+
+      - name: Prepare AVB signing key
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STOCK_BOOT_TAG: stock-boot
+          AVB_KEY_ASSET: rsa4096_boot.pem
+        run: |
+          set -euo pipefail
+          cd "$BOOT_WORK"
+          KEY_OK=false
+ 
+          echo "[INFO]: Trying to download '$AVB_KEY_ASSET' from release '$STOCK_BOOT_TAG'..."
+          if gh release download "$STOCK_BOOT_TAG" \
+               --repo "$GITHUB_REPOSITORY" \
+               --pattern "$AVB_KEY_ASSET" \
+               --dir "$BOOT_WORK/keydl" \
+               --clobber; then
+            mv "$BOOT_WORK/keydl/$AVB_KEY_ASSET" "$BOOT_WORK/key.pem"
+            chmod 600 "$BOOT_WORK/key.pem"
+ 
+            # SHA256_RSA4096 needs a valid 4096-bit RSA private key
+            if openssl rsa -in key.pem -noout -text 2>/dev/null | grep -q "4096 bit"; then
+              KEY_OK=true
+              echo "--> Using the AVB key from the release"
+            else
+              echo "::warning::'$AVB_KEY_ASSET' is not a valid RSA-4096 private key"
+            fi
+          else
+            echo "::warning::Could not download '$AVB_KEY_ASSET' from the release"
+          fi
+ 
+          if [ "$KEY_OK" != "true" ]; then
+            echo "--> Falling back to a temporary generated RSA-4096 key"
+            rm -f key.pem
+            openssl genrsa -out key.pem 4096
+          fi
+ 
+      - name: Sign boot.img (avbtool)
+        env:
+          STOCK_BOOT: ${{ github.workspace }}/prebuilt/boot.img
+          # Optional repo variable (bytes). Empty = size of prebuilt/boot.img
+          BOOT_PARTITION_SIZE: ${{ vars.BOOT_PARTITION_SIZE }}
+          BUILD_FINGERPRINT: ${{ inputs.build_fingerprint }}
+          BUILD_OS_VERSION: ${{ inputs.build_os_version }}
+        run: |
+          set -euo pipefail
+          cd "$BOOT_WORK"
+          [ -f key.pem ] || { echo "::error::key.pem not found. Did 'Prepare AVB signing key' run?"; exit 1; }
+ 
+          PART_SIZE="${BOOT_PARTITION_SIZE:-$(stat -c%s "$STOCK_BOOT")}"
+          echo "--> partition_size = $PART_SIZE"
+ 
+          cp boot.img boot-signed.img
+          python3 "$TOOLS/avb/avbtool.py" add_hash_footer \
+            --image boot-signed.img \
+            --partition_name boot \
+            --partition_size "$PART_SIZE" \
+            --key key.pem \
+            --algorithm SHA256_RSA4096 \
+            --prop "com.android.build.boot.fingerprint:${BUILD_FINGERPRINT}" \
+            --prop "com.android.build.boot.os_version:${BUILD_OS_VERSION}"
+ 
+          python3 "$TOOLS/avb/avbtool.py" info_image --image boot-signed.img
+ 
+          cp boot.img        "$GITHUB_WORKSPACE/build/boot-unsigned.img"
+          cp boot-signed.img "$GITHUB_WORKSPACE/build/boot.img"
+          rm -f key.pem
+          ls -l "$GITHUB_WORKSPACE/build"
+
+      - name: Pack module to socko.img
+        if: ${{ inputs.build_kernel_module == true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STOCK_BOOT_TAG: stock-boot
+        run: |
+          set -euo pipefail
+          W="$GITHUB_WORKSPACE"
+
+          # Out-of-tree modules are installed under <kernel release>/extra
+          KERNEL_VERSION=$(awk '{print $3}' "$W/out/include/generated/utsrelease.h" | tr -d '"')
+          MODULES_DIR="$W/modules_out/lib/modules/$KERNEL_VERSION/extra"
+          if [ ! -d "$MODULES_DIR" ]; then
+            echo "::error::$MODULES_DIR not found. Did the out-of-tree modules build and install?"
+            exit 1
+          fi
+          echo "--> Modules to pack ($KERNEL_VERSION):"
+          ls -l "$MODULES_DIR"
+
+          echo "[INFO]: Downloading socko.img from release '$STOCK_BOOT_TAG'..."
+          mkdir -p "$W/prebuilt"
+          gh release download "$STOCK_BOOT_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern socko.img \
+            --dir "$W/prebuilt" \
+            --clobber || { echo "::error::socko.img asset not found in release '$STOCK_BOOT_TAG'"; exit 1; }
+
+          # Loop mounting needs a raw filesystem image, not an Android sparse image
+          if [ "$(head -c4 "$W/prebuilt/socko.img" | xxd -p)" = "3aff26ed" ]; then
+            echo "::error::socko.img is an Android sparse image. Use the raw ext4 image you loop-mount on the phone."
+            exit 1
+          fi
+
+          cp "$W/prebuilt/socko.img" "$W/build/socko.img"
+
+          sudo apt-get install -y -qq attr > /dev/null
+
+          MNT="$W/socko_mnt"
+          mkdir -p "$MNT"
+          sudo mount -o loop "$W/build/socko.img" "$MNT"
+          # Always unmount, even if a later command fails
+          trap 'sudo umount "$MNT" 2>/dev/null || true' EXIT
+
+          echo "--> Current contents of socko.img:"
+          ls -l "$MNT"
+          df -h "$MNT"
+
+          # Remember the SELinux label of an existing module (if any), because a
+          # runner without SELinux does not label the files it creates
+          LABEL_HEX=""
+          FIRST_KO=$(sudo find "$MNT" -maxdepth 1 -name '*.ko' | head -n1 || true)
+          if [ -n "$FIRST_KO" ]; then
+            LABEL_HEX=$(sudo getfattr -h -n security.selinux -e hex "$FIRST_KO" 2>/dev/null \
+              | sed -n 's/^security.selinux=//p' || true)
+          fi
+
+          echo "[INFO]: Replacing contents with the new modules..."
+          sudo find "$MNT" -mindepth 1 -delete
+          sudo cp "$MODULES_DIR"/* "$MNT"/
+          sudo find "$MNT" -maxdepth 1 -type f -exec chmod 644 {} +
+
+          if [ -n "$LABEL_HEX" ]; then
+            echo "--> Applying the previous SELinux label to the new modules"
+            sudo find "$MNT" -maxdepth 1 -type f -exec setfattr -h -n security.selinux -v "$LABEL_HEX" {} + \
+              || echo "::warning::Could not set the SELinux label on the new modules"
+          else
+            echo "::warning::No existing module found to copy the SELinux label from. Files are unlabeled."
+          fi
+
+          echo "--> New contents of socko.img:"
+          ls -l "$MNT"
+          df -h "$MNT"
+
+          sync
+          sudo umount "$MNT"
+          trap - EXIT
+
+          sudo e2fsck -fn "$W/build/socko.img" || echo "::warning::e2fsck reported issues with socko.img"
+          python3 "$TOOLS/avb/avbtool.py" info_image --image "$W/build/socko.img" || echo "::warning::No AVB footer found in socko.img"
+          ls -l "$W/build/socko.img"
+
+      - name: Collect selected in-tree modules
+        run: |
+          set -euo pipefail
+ 
+          # Use the real kernel release (e.g. 4.14.200), never a hardcoded one
+          KERNEL_VERSION=$(awk '{print $3}' "$GITHUB_WORKSPACE/out/include/generated/utsrelease.h" | tr -d '"')
+          SRC="$GITHUB_WORKSPACE/modules_out/lib/modules/$KERNEL_VERSION"
+          DEST="$GITHUB_WORKSPACE/build/modules/lib/modules/$KERNEL_VERSION"
+          mkdir -p "$DEST"
+ 
+          cd "$SRC"
+          # Paths are relative to lib/modules/<release>.
+          # cp fails if a file is missing, so a wrong path stops the build.
+          for f in \
+            kernel/fs/incfs/incrementalfs.ko \
+            kernel/kernel/kheaders.ko \
+            kernel/kernel/trace/*.ko
+          do
+            cp --parents "$f" "$DEST/"
+          done
+ 
+          # Module metadata (uncomment what you need)
+          # cp modules.alias modules.dep modules.softdep "$DEST/"
+ 
+          echo "--> Collected modules:"
+          find "$DEST" -type f | sort
+
+      - name: Publish to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFCONFIG: ${{ inputs.defconfig }}
+        run: |
+          set -euo pipefail
+          W="$GITHUB_WORKSPACE"
+
+          KERNEL_VERSION=$(awk '{print $3}' "$W/out/include/generated/utsrelease.h" | tr -d '"')
+          TAG="kernel-${KERNEL_VERSION}-run${GITHUB_RUN_NUMBER}"
+
+          cd "$W/build"
+
+          # Release assets must be files, so zip the directories
+          (cd dtb && zip -r9 ../dtb.zip .)
+          (cd modules && zip -r9 ../modules-intree.zip .)
+
+          FILES=(boot.img dtb.zip modules-intree.zip)
+          if [ -f socko.img ]; then
+            FILES+=(socko.img)
+          fi
+
+          echo "[INFO]: Creating release ${TAG} with: ${FILES[*]}"
+          gh release create "$TAG" "${FILES[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Kernel ${KERNEL_VERSION} (${DEFCONFIG}) run ${GITHUB_RUN_NUMBER}" \
+            --notes "Built from ${GITHUB_SHA} by workflow run ${GITHUB_RUN_ID}." \
+            --prerelease
