@@ -138,14 +138,85 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-
 
+
       - name: Setup System Dependencies
+        shell: bash
         run: |
-          echo "[INFO]: Installing system requirements..."
-          sudo apt-get update
-          sudo apt-get install -y --fix-missing \
-            git device-tree-compiler lz4 xz-utils zlib1g-dev zip make gcc g++ \
-            python3 python-is-python3 libncurses-dev flex bison gperf libssl-dev \
-            libelf-dev kmod pahole zstd libyaml-dev ccache
+          set -euo pipefail
+
+          PACKAGES=(
+            git
+            device-tree-compiler
+            lz4
+            xz-utils
+            zlib1g-dev
+            zip
+            make
+            gcc
+            g++
+            python3
+            python-is-python3
+            libncurses-dev
+            flex
+            bison
+            gperf
+            libssl-dev
+            libelf-dev
+            kmod
+            pahole
+            zstd
+            libyaml-dev
+            ccache
+            attr
+            xxd
+          )
+
+          echo "[INFO] Updating APT package lists..."
+
+          SUCCESS=false
+
+          for attempt in 1 2 3 4 5; do
+            echo "[INFO] APT attempt ${attempt}/5"
+
+            if sudo apt-get \
+              -o Acquire::Retries=3 \
+              -o Acquire::http::Timeout=30 \
+              -o Acquire::https::Timeout=30 \
+              update && \
+              sudo apt-get \
+              -o Acquire::Retries=3 \
+              -o Acquire::http::Timeout=30 \
+              -o Acquire::https::Timeout=30 \
+              install -y "${PACKAGES[@]}"; then
+
+              SUCCESS=true
+              break
+            fi
+
+            echo "[WARNING] APT failed on attempt ${attempt}"
+
+            if [ "$attempt" -lt 5 ]; then
+              sleep 20
+            fi
+          done
+
+          if [ "$SUCCESS" != "true" ]; then
+            echo "::error::Failed to install system dependencies after 5 attempts"
+            exit 1
+          fi
+
+          echo "[INFO] All system dependencies installed!"
+
+          echo "[INFO] Checking required tools..."
+          for tool in git make gcc clang dtc fdtget pahole ccache readelf xxd; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::Missing required tool: $tool"
+              exit 1
+            fi
+          done
+
+          echo "[INFO] Dependency verification completed."
+
 
       - name: Download and Set up Toolchains
         if: steps.cache-toolchains.outputs.cache-hit != 'true'
