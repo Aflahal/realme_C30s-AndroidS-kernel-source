@@ -200,6 +200,8 @@ static struct bq2560x_charger_reg_tab reg_tab[BQ2560X_REG_NUM + 1] = {
 	{12, 0, "null"},
 };
 
+extern int sc27xx_fgu_bat_id;
+
 static void power_path_control(struct bq2560x_charger_info *info)
 {
 	struct device_node *cmdline_node;
@@ -369,8 +371,12 @@ static int bq2560x_charger_hw_init(struct bq2560x_charger_info *info)
 	struct sprd_battery_info bat_info = {};
 	int voltage_max_microvolt, termination_cur;
 	int ret;
+	int num = 0;
 
-	ret = sprd_battery_get_battery_info(info->psy_usb, &bat_info);
+	if (sc27xx_fgu_bat_id == 2)
+		num = 1;
+
+	ret = sprd_battery_get_battery_info(info->psy_usb, &bat_info, num);
 	if (ret) {
 		dev_warn(info->dev, "no battery information is supplied\n");
 
