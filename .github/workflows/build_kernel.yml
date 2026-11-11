@@ -39,13 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    defaults:
-      run:
-        working-directory: kernel-4.14
 
     env:
       # General Build Variables
-      KERNEL_ROOT: ${{ github.workspace }}/kernel-4.14
+      KERNEL_ROOT: ${{ github.workspace }}
       ARCH: arm64
       TZ: Asia/Jakarta
       KBUILD_BUILD_USER: 'Aflahal'
@@ -72,7 +69,7 @@ jobs:
       BSP_BUILD_ANDROID_OS: "y"
       BSP_BUILD_FAMILY: "sharkl3"
       BSP_BOARD_NAME: "sharkl3"
-      BSP_KERNEL_VERSION: "kernel4.14"
+      BSP_KERNEL_VERSION: "kernel5.4"
 
       # PowerVR
       TARGET_KERNEL_ARCH: "arm64"
@@ -80,11 +77,11 @@ jobs:
       BSP_PRODUCT_NAME: "sharkl3"
       TARGET_BOARD: "sharkl3"
       TARGET_BOARD_PLATFORM: "sharkl3"
-      PLATFORM_RELEASE: "11"
-      PLATFORM_VERSION: "11"
-      PLATFORM_VERSION_CODENAME: "R"
-      PLATFORM_CODENAME: "R"
-      BSP_ROOT_DIR: "${{ github.workspace }}/kernel-4.14"
+      PLATFORM_RELEASE: "12"
+      PLATFORM_VERSION: "12"
+      PLATFORM_VERSION_CODENAME: "S"
+      PLATFORM_CODENAME: "S"
+      BSP_ROOT_DIR: "${{ github.workspace }}"
       BSP_OUT_PLATFORM: "${{ github.workspace }}/out"
       BSP_KERNEL_OUT: "${{ github.workspace }}/out"
       NDK_PLATFORMS_ROOT: "${{ github.workspace }}/prebuilts/ndk/platforms"
