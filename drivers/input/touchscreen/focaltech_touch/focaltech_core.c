@@ -51,7 +51,7 @@
 #define FTS_SUSPEND_LEVEL 1     /* Early-suspend level */
 #endif
 #include "focaltech_core.h"
-#include "../nt36xxx/touch.h"
+#include "../touch.h"
 #include "../../../gpu/drm/sprd/sprd_dsi_panel.h"
 
 
@@ -2151,6 +2151,7 @@ static const struct spi_device_id fts_ts_id[] = {
     {},
 };
 static const struct of_device_id fts_dt_match[] = {
+    {.compatible = "oppo,touchscreen", }
     {.compatible = "tl,touchscreen", },
     {},
 };
