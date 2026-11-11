@@ -198,7 +198,7 @@ jobs:
         run: |
           # Every step runs in its own shell, so share the make arguments via a sourced file
           cat > "${RUNNER_TEMP}/make_args.sh" <<'EOF'
-          SRC="${GITHUB_WORKSPACE}/kernel-4.14"
+          SRC="${GITHUB_WORKSPACE}"
           OUT="${GITHUB_WORKSPACE}/out"
           MOD_OUT="${GITHUB_WORKSPACE}/modules_out"
 
