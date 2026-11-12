@@ -23,8 +23,8 @@
 #include "ilitek_v3.h"
 #include "../touch.h"
 #include <linux/hardware_info.h>
-#include <linux/hardware_info_wt.h>
-extern char Ctp_name[HARDWARE_MAX_ITEM_LONGTH];
+//#include <linux/hardware_info_wt.h>
+//extern char Ctp_name[HARDWARE_MAX_ITEM_LONGTH];
 #define PROTOCL_VER_NUM		8
 static struct ilitek_protocol_info protocol_info[PROTOCL_VER_NUM] = {
 	/* length -> fw, protocol, tp, key, panel, core, func, window, cdc, mp_info */
@@ -1104,7 +1104,7 @@ out:
     if(false==ilits->chip->devinfo_tp_has_init){
        ILI_INFO("fw version is 0x%x.\n", ilits->chip->fw_ver_info);
        tp_register_devinfo(buf[3]);
-       sprintf(Ctp_name,"TXD,ILI9882,FW:0x%x\n",buf[3]);
+       //sprintf(Ctp_name,"TXD,ILI9882,FW:0x%x\n",buf[3]);
        ilits->chip->devinfo_tp_has_init = true;
 	}
 	return ret;
