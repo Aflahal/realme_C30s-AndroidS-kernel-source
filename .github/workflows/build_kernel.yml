@@ -62,6 +62,11 @@ jobs:
       CROSS_COMPILE: "${{ github.workspace }}/toolchains/gcc-14.3/bin/aarch64-none-linux-gnu-"
       CROSS_COMPILE_ARM32: "${{ github.workspace }}/toolchains/gcc-14.3/bin/arm-none-linux-gnueabihf-"
 
+      # dtbo.img layout: the order below is the entry index inside the image
+      # (first name = index 0, second name = index 1). Each name must exist in build/dtb.
+      DTBO_OVERLAYS: "RMX3231-overlay.dtbo RMX3235-overlay.dtbo"
+      DTBO_PAGE_SIZE: "2048"
+
       # UNISOC Board-Specific Properties (used by (.ko) Makefiles)
       # Android Build
       BSP_BOARD_ARCH: arm64
@@ -532,6 +537,112 @@ jobs:
           echo "TOOLS=$TOOLS" >> "$GITHUB_ENV"
           echo "BOOT_WORK=$BOOT_WORK" >> "$GITHUB_ENV"
 
+      - name: Install DT table helper (mk_dt_table.py)
+        run: |
+          set -euo pipefail
+
+          # One helper builds every DT table image: the single-DTB header used in boot.img
+          # and the multi-entry dtbo.img. This replaces the inline Python that used to live
+          # in the "Pack boot.img" step.
+          cat > "$TOOLS/mk_dt_table.py" <<'PY'
+          #!/usr/bin/env python3
+          """Build an Android DT table image (DTBO container format, header version 0)."""
+          import argparse
+          import struct
+          import sys
+
+          TABLE_MAGIC = 0xD7B7AB1E   # bytes D7 B7 AB 1E
+          FDT_MAGIC = 0xD00DFEED     # bytes D0 0D FE ED
+          HDR_SIZE = 0x20            # dt_table_header
+          ENTRY_SIZE = 0x20          # dt_table_entry
+
+
+          def be32(data):
+              return int.from_bytes(data[:4], "big")
+
+
+          def build(blobs, page_size, pad):
+              offset = HDR_SIZE + ENTRY_SIZE * len(blobs)
+              total = offset + sum(len(b) for b in blobs)
+
+              header = struct.pack(">8I",
+                  TABLE_MAGIC,   # magic
+                  total,         # total_size
+                  HDR_SIZE,      # header_size
+                  ENTRY_SIZE,    # dt_entry_size
+                  len(blobs),    # dt_entry_count
+                  HDR_SIZE,      # dt_entries_offset
+                  page_size,     # page_size
+                  0)             # version
+
+              entries = b""
+              for blob in blobs:
+                  # dt_size, dt_offset, id, rev, custom[4]
+                  entries += struct.pack(">8I", len(blob), offset, 0, 0, 0, 0, 0, 0)
+                  offset += len(blob)
+
+              image = header + entries + b"".join(blobs)
+              if pad and len(image) % page_size:
+                  image += b"\0" * (page_size - len(image) % page_size)
+              return image
+
+
+          def verify(image, names):
+              magic, total, _hsz, esz, count, eoff, psz, ver = struct.unpack(">8I", image[:32])
+              if magic != TABLE_MAGIC:
+                  sys.exit("error: bad DT table magic in the result")
+              if total > len(image) or count != len(names):
+                  sys.exit("error: inconsistent DT table header in the result")
+              print(f"--> DT table: entries={count} total_size={total:#x} "
+                    f"page_size={psz} version={ver} file_size={len(image):#x}")
+              for i in range(count):
+                  base = eoff + i * esz
+                  dt_size, dt_off, dt_id, dt_rev = struct.unpack(">4I", image[base:base + 16])
+                  if dt_off + dt_size > total or be32(image[dt_off:dt_off + 4]) != FDT_MAGIC:
+                      sys.exit(f"error: entry {i} is not a valid FDT inside the result")
+                  print(f"    [{i}] {names[i]}: offset={dt_off:#x} size={dt_size:#x} id={dt_id} rev={dt_rev}")
+
+
+          def main():
+              ap = argparse.ArgumentParser(description=__doc__)
+              ap.add_argument("--page-size", type=int, default=2048)
+              ap.add_argument("--pad", action="store_true",
+                              help="pad the file with zeros to a multiple of the page size")
+              ap.add_argument("-o", "--output", required=True)
+              ap.add_argument("inputs", nargs="+", help="DTB/DTBO files, in entry order")
+              args = ap.parse_args()
+
+              blobs = []
+              for path in args.inputs:
+                  with open(path, "rb") as f:
+                      blobs.append(f.read())
+
+              has_table = [be32(b) == TABLE_MAGIC for b in blobs]
+              if len(blobs) == 1 and has_table[0]:
+                  print("--> Input already has a DT table header, keeping it as is")
+                  with open(args.output, "wb") as f:
+                      f.write(blobs[0])
+                  return
+              if any(has_table):
+                  sys.exit("error: an input already has a DT table header, refusing to nest it")
+              for path, blob in zip(args.inputs, blobs):
+                  if be32(blob) != FDT_MAGIC:
+                      sys.exit(f"error: {path} is not a flattened device tree")
+
+              image = build(blobs, args.page_size, args.pad)
+              verify(image, [p.rsplit("/", 1)[-1] for p in args.inputs])
+              with open(args.output, "wb") as f:
+                  f.write(image)
+
+
+          if __name__ == "__main__":
+              main()
+          PY
+
+          chmod +x "$TOOLS/mk_dt_table.py"
+          python3 "$TOOLS/mk_dt_table.py" --help > /dev/null
+          echo "--> DT table helper installed at $TOOLS/mk_dt_table.py"
+
       - name: Download stock boot.img from GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -600,42 +711,8 @@ jobs:
             fi
             echo "--> DTB: compiled from this source (sp9863a.dtb)"
 
-            # DT Header
-            python3 - "$COMPILED_DTB" dtb_with_header.img <<'PY'
-          import struct, sys
-
-          src, dst = sys.argv[1], sys.argv[2]
-          dtb = open(src, "rb").read()
-
-          MAGIC = 0xD7B7AB1E            # bytes D7 B7 AB 1E
-          if dtb[:4] == struct.pack(">I", MAGIC):
-              print("--> DTB already has a DT table header, keeping it as is")
-              open(dst, "wb").write(dtb)
-              sys.exit(0)
-
-          HDR_SIZE = 0x20               # dt_table_header
-          ENTRY_SIZE = 0x20             # dt_table_entry
-          DTB_OFFSET = HDR_SIZE + ENTRY_SIZE   # 0x40
-          total = DTB_OFFSET + len(dtb)
-
-          header = struct.pack(">8I",
-              MAGIC,        # magic
-              total,        # total_size
-              HDR_SIZE,     # header_size
-              ENTRY_SIZE,   # dt_entry_size
-              1,            # dt_entry_count
-              HDR_SIZE,     # dt_entries_offset
-              0x800,        # page_size
-              0)            # version
-          entry = struct.pack(">8I",
-              len(dtb),     # dt_size
-              DTB_OFFSET,   # dt_offset
-              0, 0,         # id, rev
-              0, 0, 0, 0)   # custom[4]
-
-          open(dst, "wb").write(header + entry + dtb)
-          print(f"--> Header added: dtb={len(dtb):#x} total={total:#x}")
-          PY
+            # Wrap the DTB in a one-entry DT table (page size 0x800, same as the boot image)
+            python3 "$TOOLS/mk_dt_table.py" --page-size 2048 -o dtb_with_header.img "$COMPILED_DTB"
 
             echo "--> Header check (first 64 bytes):"
             head -c 64 dtb_with_header.img | xxd
@@ -716,6 +793,43 @@ jobs:
           cp boot-signed.img "$GITHUB_WORKSPACE/build/boot.img"
           rm -f key.pem
           ls -l "$GITHUB_WORKSPACE/build"
+
+      - name: Pack dtbo.img from overlays
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/build"
+
+          files=()
+          for name in ${DTBO_OVERLAYS}; do
+            f="dtb/${name}"
+            if [ ! -f "$f" ]; then
+              echo "::error::Overlay not found: $f. Available files:"
+              ls dtb
+              exit 1
+            fi
+            files+=("$f")
+          done
+
+          echo "[INFO]: Packing dtbo.img (page size ${DTBO_PAGE_SIZE}), entry order:"
+          i=0
+          for f in "${files[@]}"; do
+            echo "    index ${i}: ${f}"
+
+            # Each overlay selects itself through androidboot.dtbo_idx in its bootargs_ext.
+            # It must match the position of the overlay in dtbo.img.
+            declared="$(grep -ao 'androidboot.dtbo_idx=[0-9]*' "$f" | sed -n '1p' | cut -d= -f2 || true)"
+            if [ -z "$declared" ]; then
+              echo "    [WARN]: no androidboot.dtbo_idx found in ${f}"
+            elif [ "$declared" != "$i" ]; then
+              echo "::warning::${f} declares androidboot.dtbo_idx=${declared} but it is entry ${i} in dtbo.img"
+            else
+              echo "    androidboot.dtbo_idx=${declared} matches the entry index"
+            fi
+            i=$((i + 1))
+          done
+
+          python3 "$TOOLS/mk_dt_table.py" --page-size "$DTBO_PAGE_SIZE" --pad -o dtbo.img "${files[@]}"
+          ls -l dtbo.img
 
       - name: Pack module to socko.img
         if: ${{ inputs.build_kernel_module == true }}
@@ -799,30 +913,55 @@ jobs:
           ls -l "$W/build/socko.img"
 
       - name: Collect selected in-tree modules
+        env:
+          # Paths or globs relative to lib/modules/<release>, space separated.
+          # Entries that were not built are skipped with a warning: depending on the
+          # defconfig these features are built-in (=y) or disabled, so no .ko exists.
+          INTREE_MODULES: >-
+            kernel/fs/incfs/incrementalfs.ko
+            kernel/kernel/kheaders.ko
+            kernel/kernel/trace/*.ko
         run: |
           set -euo pipefail
- 
+          # A glob that matches nothing expands to an empty list instead of itself
+          shopt -s nullglob
+
           # Use the real kernel release (e.g. 4.14.200), never a hardcoded one
           KERNEL_VERSION=$(awk '{print $3}' "$GITHUB_WORKSPACE/out/include/generated/utsrelease.h" | tr -d '"')
           SRC="$GITHUB_WORKSPACE/modules_out/lib/modules/$KERNEL_VERSION"
           DEST="$GITHUB_WORKSPACE/build/modules/lib/modules/$KERNEL_VERSION"
           mkdir -p "$DEST"
- 
+
           cd "$SRC"
-          # Paths are relative to lib/modules/<release>.
-          # cp fails if a file is missing, so a wrong path stops the build.
-          for f in \
-            kernel/fs/incfs/incrementalfs.ko \
-            kernel/kernel/kheaders.ko \
-            kernel/kernel/trace/*.ko
-          do
-            cp --parents "$f" "$DEST/"
+
+          echo "--> Modules installed by this build:"
+          find . -name '*.ko' | sort
+
+          # Split the list without expanding the globs yet
+          read -r -a patterns <<< "$INTREE_MODULES"
+
+          collected=0
+          for pattern in "${patterns[@]}"; do
+            # Unquoted on purpose: the glob is expanded here. A literal path that does
+            # not exist is returned as-is, so every match is checked for existence below.
+            matches=( $pattern )
+            found=0
+            for f in "${matches[@]}"; do
+              if [ -e "$f" ]; then
+                cp --parents "$f" "$DEST/"
+                collected=$((collected + 1))
+                found=1
+              fi
+            done
+            if [ "$found" -eq 0 ]; then
+              echo "[WARN]: not built in this config, skipping: $pattern"
+            fi
           done
- 
+
           # Module metadata (uncomment what you need)
           # cp modules.alias modules.dep modules.softdep "$DEST/"
- 
-          echo "--> Collected modules:"
+
+          echo "--> Collected ${collected} module(s):"
           find "$DEST" -type f | sort
 
       - name: Publish to GitHub Release
@@ -839,10 +978,23 @@ jobs:
           cd "$W/build"
 
           # Release assets must be files, so zip the directories
-          (cd dtb && zip -r9 ../dtb.zip .)
-          (cd modules && zip -r9 ../modules-intree.zip .)
+          FILES=(boot.img)
 
-          FILES=(boot.img dtb.zip modules-intree.zip)
+          if [ -f dtbo.img ]; then
+            FILES+=(dtbo.img)
+          fi
+
+          (cd dtb && zip -r9 ../dtb.zip .)
+          FILES+=(dtb.zip)
+
+          # zip fails on an empty directory, so only publish the in-tree modules if any were collected
+          if [ -n "$(find modules -type f -print -quit 2>/dev/null)" ]; then
+            (cd modules && zip -r9 ../modules-intree.zip .)
+            FILES+=(modules-intree.zip)
+          else
+            echo "[WARN]: no in-tree modules were collected, skipping modules-intree.zip"
+          fi
+
           if [ -f socko.img ]; then
             FILES+=(socko.img)
           fi
