@@ -24,7 +24,7 @@ static bool (*this_detect_fp)(void);
 
 #if defined(HX_USE_KSYM)
 #if 0
-static void himax_add_chip_dt(bool (*detect_fp)(void))
+static __maybe_unused void himax_add_chip_dt(bool (*detect_fp)(void))
 {
 	int32_t idx;
 	struct himax_chip_entry *entry;
@@ -54,7 +54,7 @@ static void himax_add_chip_dt(bool (*detect_fp)(void))
 #endif
 #else
 
-static void himax_add_chip_dt(bool (*detect_fp)(void))
+static __maybe_unused void himax_add_chip_dt(bool (*detect_fp)(void))
 {
 	this_detect_fp = detect_fp;
 	if (himax_ksym_lookup.core_chip_dt == NULL) {
