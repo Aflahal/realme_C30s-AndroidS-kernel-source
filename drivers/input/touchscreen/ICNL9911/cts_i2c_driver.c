@@ -19,7 +19,7 @@
 #include "../../../gpu/drm/sprd/sprd_dsi_panel.h"
 
 #include "cts_strerror.h"
-#include "../nt36xxx/touch.h"
+#include "../touch.h"
 struct cts_device *cts_de;
 
 extern struct touch_panel tp_interface;
