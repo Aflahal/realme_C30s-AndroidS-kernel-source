@@ -143,67 +143,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-
 
-
-
       - name: Setup System Dependencies
-        shell: bash
         run: |
-          set -euo pipefail
-
-          echo "[INFO] Reconfiguring Ubuntu repositories..."
-
-          # Replace Ubuntu mirror configuration
-          sudo tee /etc/apt/sources.list.d/ubuntu.sources > /dev/null <<'EOF'
-          Types: deb
-          URIs: https://archive.ubuntu.com/ubuntu
-          Suites: noble noble-updates noble-backports
-          Components: main universe restricted multiverse
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-          Types: deb
-          URIs: https://security.ubuntu.com/ubuntu
-          Suites: noble-security
-          Components: main universe restricted multiverse
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-          EOF
-
-          echo "[INFO] Checking DNS resolution..."
-
-          for host in archive.ubuntu.com security.ubuntu.com; do
-            if ! getent ahosts "$host" >/dev/null 2>&1; then
-              echo "::error::DNS resolution failed for $host"
-              exit 1
-            fi
-            echo "[OK] $host"
-          done
-
-          PACKAGES=(
-            git device-tree-compiler lz4 xz-utils zlib1g-dev
-            zip make gcc g++ python3 python-is-python3
-            libncurses-dev flex bison gperf libssl-dev
-            libelf-dev kmod pahole zstd libyaml-dev
-            ccache attr
-          )
-
-          echo "[INFO] Updating package lists..."
-
-          sudo apt-get \
-            -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            update
-
-          echo "[INFO] Installing dependencies..."
-
-          sudo apt-get \
-            -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            install -y "${PACKAGES[@]}"
-
-          echo "[INFO] Dependencies installed successfully!"
-
-
+          echo "[INFO]: Installing system requirements..."
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing \
+            git device-tree-compiler lz4 xz-utils zlib1g-dev zip make gcc g++ \
+            python3 python-is-python3 libncurses-dev flex bison gperf libssl-dev \
+            libelf-dev kmod pahole zstd libyaml-dev ccache
 
       - name: Download and Set up Toolchains
         if: steps.cache-toolchains.outputs.cache-hit != 'true'
