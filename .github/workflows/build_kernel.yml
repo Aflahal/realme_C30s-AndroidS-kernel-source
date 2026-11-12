@@ -541,9 +541,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # One helper builds every DT table image: the single-DTB header used in boot.img
-          # and the multi-entry dtbo.img. This replaces the inline Python that used to live
-          # in the "Pack boot.img" step.
+          # Builds the multi-entry dtbo.img (see the "Pack dtbo.img from overlays" step).
+          # The boot.img DTB header is still built by the inline Python in "Pack boot.img".
           cat > "$TOOLS/mk_dt_table.py" <<'PY'
           #!/usr/bin/env python3
           """Build an Android DT table image (DTBO container format, header version 0)."""
@@ -711,8 +710,42 @@ jobs:
             fi
             echo "--> DTB: compiled from this source (sp9863a.dtb)"
 
-            # Wrap the DTB in a one-entry DT table (page size 0x800, same as the boot image)
-            python3 "$TOOLS/mk_dt_table.py" --page-size 2048 -o dtb_with_header.img "$COMPILED_DTB"
+            # DT Header
+            python3 - "$COMPILED_DTB" dtb_with_header.img <<'PY'
+          import struct, sys
+
+          src, dst = sys.argv[1], sys.argv[2]
+          dtb = open(src, "rb").read()
+
+          MAGIC = 0xD7B7AB1E            # bytes D7 B7 AB 1E
+          if dtb[:4] == struct.pack(">I", MAGIC):
+              print("--> DTB already has a DT table header, keeping it as is")
+              open(dst, "wb").write(dtb)
+              sys.exit(0)
+
+          HDR_SIZE = 0x20               # dt_table_header
+          ENTRY_SIZE = 0x20             # dt_table_entry
+          DTB_OFFSET = HDR_SIZE + ENTRY_SIZE   # 0x40
+          total = DTB_OFFSET + len(dtb)
+
+          header = struct.pack(">8I",
+              MAGIC,        # magic
+              total,        # total_size
+              HDR_SIZE,     # header_size
+              ENTRY_SIZE,   # dt_entry_size
+              1,            # dt_entry_count
+              HDR_SIZE,     # dt_entries_offset
+              0x800,        # page_size
+              0)            # version
+          entry = struct.pack(">8I",
+              len(dtb),     # dt_size
+              DTB_OFFSET,   # dt_offset
+              0, 0,         # id, rev
+              0, 0, 0, 0)   # custom[4]
+
+          open(dst, "wb").write(header + entry + dtb)
+          print(f"--> Header added: dtb={len(dtb):#x} total={total:#x}")
+          PY
 
             echo "--> Header check (first 64 bytes):"
             head -c 64 dtb_with_header.img | xxd
