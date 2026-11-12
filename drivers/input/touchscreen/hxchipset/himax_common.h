@@ -41,7 +41,7 @@
 #include <linux/kallsyms.h>
 #include <linux/version.h>
 #include "linux/hardware_info.h"
-#include "../nt36xxx/touch.h"
+#include "../touch.h"
 
 
 
