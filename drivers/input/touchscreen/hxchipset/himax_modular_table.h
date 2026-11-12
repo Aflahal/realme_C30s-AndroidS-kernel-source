@@ -132,7 +132,7 @@ static struct himax_chip_entry *get_chip_entry_by_index(int32_t idx)
 	return  &himax_ksym_lookup;
 }
 
-static int32_t isEmpty(int32_t idx)
+static __maybe_unused int32_t isEmpty(int32_t idx)
 {
 	struct himax_chip_entry *entry;
 
@@ -146,7 +146,7 @@ static int32_t isEmpty(int32_t idx)
 	return MODULE_NOT_FOUND;
 }
 
-static int32_t himax_get_ksym_idx(void)
+static __maybe_unused int32_t himax_get_ksym_idx(void)
 {
 	int32_t size;
 
