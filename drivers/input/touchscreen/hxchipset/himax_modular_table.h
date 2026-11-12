@@ -77,7 +77,7 @@ static struct himax_chip_entry *get_chip_entry_by_index(int32_t idx)
  * Return 1 when specified entry is empty, 0 when not, -1 when index error
  */
 
-static int32_t isEmpty(int32_t idx)
+static __maybe_unused int32_t isEmpty(int32_t idx)
 {
 	int32_t size = sizeof(himax_ksym_lookup) / sizeof(char *);
 	struct himax_chip_entry *entry;
@@ -97,7 +97,7 @@ static int32_t isEmpty(int32_t idx)
  * Return index of himax_ksym_lookup
  */
 
-static int32_t himax_get_ksym_idx(void)
+static __maybe_unused int32_t himax_get_ksym_idx(void)
 {
 	int32_t i, first = -1;
 	int32_t size = sizeof(himax_ksym_lookup) / sizeof(char *);
