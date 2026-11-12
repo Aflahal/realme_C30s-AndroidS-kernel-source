@@ -111,6 +111,10 @@ obj-$(CONFIG_TOUCHSCREEN_RASPBERRYPI_FW)	+= raspberrypi-ts.o
 obj-$(CONFIG_TOUCHSCREEN_IQS5XX)	+= iqs5xx.o
 obj-y += touch.o
 obj-$(CONFIG_TOUCHSCREEN_FTS_CHIPSET)    += focaltech_touch/
+obj-$(CONFIG_TOUCHSCREEN_HIMAX_83112A)    += Himax/
+obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET) += hxchipset/
+obj-y   += ili9882q/
+obj-y   += ICNL9911/
 $(warning errorlogxxxxlog:$(strip $(CONFIG_TOUCHSCREEN_CHIPONE_MILAN_CHIPSET)))
 obj-$(CONFIG_TOUCHSCREEN_FTS_MILAN_CHIPSET)    += focaltech_touch_milan/
 obj-$(CONFIG_TOUCHSCREEN_CHIPONE_MILAN_CHIPSET)    += icnl9911_milan/

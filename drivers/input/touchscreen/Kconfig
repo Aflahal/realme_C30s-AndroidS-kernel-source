@@ -1324,6 +1324,9 @@ config TOUCHSCREEN_HIMAX_CHIPSET
           report 10 touches at a time.
 
           If unsure, say N.
+source "drivers/input/touchscreen/hxchipset/Kconfig"
+
+source "drivers/input/touchscreen/Himax/Kconfig"
 
 config TOUCHSCREEN_CTS_CHIPSET
         tristate "choice Cts_touch chipset"
@@ -1336,6 +1339,7 @@ config TOUCHSCREEN_CTS_CHIPSET
           To compile this driver as a module, choose M here: the
           module will be called bu21023_ts.
 
+source "drivers/input/touchscreen/ICNL9911/Kconfig"
 
 config TOUCHSCREEN_FTS_CHIPSET
 	tristate "choice focaltech_touch chipset"
@@ -1347,9 +1351,8 @@ config TOUCHSCREEN_FTS_CHIPSET
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called bu21023_ts.
-	  
-	  
-source "drivers/input/touchscreen/focaltech_touch_milan/Kconfig"
+
+source "drivers/input/touchscreen/focaltech_touch/Kconfig"
 
 config TOUCHSCREEN_FTS_MILAN_CHIPSET
 	tristate "choice focaltech_touch_milan chipset"
@@ -1362,7 +1365,7 @@ config TOUCHSCREEN_FTS_MILAN_CHIPSET
 	  To compile this driver as a module, choose M here: the
 	  module will be called bu21023_ts.
 
-source "drivers/input/touchscreen/icnl9911_milan/Kconfig"
+source "drivers/input/touchscreen/focaltech_touch_milan/Kconfig"
 
 config TOUCHSCREEN_CHIPONE_MILAN_CHIPSET
 	tristate "choice icnl9911_milan chipset"
@@ -1375,6 +1378,7 @@ config TOUCHSCREEN_CHIPONE_MILAN_CHIPSET
 	  To compile this driver as a module, choose M here: the
 	  module will be called chipe one.
 	  
+source "drivers/input/touchscreen/icnl9911_milan/Kconfig"
 
 config TOUCHSCREEN_NT36xxx_HOSTDL_SPI
 	tristate "Novatek NT36xxx host download SPI driver"
