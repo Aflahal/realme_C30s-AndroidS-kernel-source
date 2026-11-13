@@ -1326,8 +1326,6 @@ config TOUCHSCREEN_HIMAX_CHIPSET
           If unsure, say N.
 source "drivers/input/touchscreen/hxchipset/Kconfig"
 
-source "drivers/input/touchscreen/Himax/Kconfig"
-
 config TOUCHSCREEN_CTS_CHIPSET
         tristate "choice Cts_touch chipset"
         depends on SPI
