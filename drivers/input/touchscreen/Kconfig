@@ -1343,10 +1343,10 @@ config TOUCHSCREEN_IILITEK_CHIPSET
         tristate "choice Ilitek_touch chipset"
         depends on SPI
         help
-          Say Y here if you have a touchscreen using ILI9882N 
+          Say Y here if you have a touchscreen using ILI9882N
 
           If unsure, say N.
-
+		  
           To compile this driver as a module, choose M here
 
 source "drivers/input/touchscreen/ili9882q/Kconfig"
