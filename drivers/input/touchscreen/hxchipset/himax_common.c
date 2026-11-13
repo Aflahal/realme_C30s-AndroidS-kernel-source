@@ -56,7 +56,7 @@ uint32_t g_oppo_debug_level = 3;
 int use_i_file_flag = 0;
 
 char lcd_name_for_tp[50];
-char bootmode[50];
+static char bootmode[50];
 /*for get bootmode*/
 static int reboot_mode = 0;
 static int get_boot_mode(void)
