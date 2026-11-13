@@ -5041,6 +5041,7 @@ int himax_ic_register(void)
 			E("%s:Unable to register hx83112a! %d\n", __func__, ret);
 			return ret;
 		}
+#if defined(__HIMAX_HX83102_MOD__)
 	} else if (Is_this_tp_hx83102d == 1) {
 		I("%s:this is 102d!\n", __func__);
 		ret = himax_hx83102_init();
@@ -5048,6 +5049,7 @@ int himax_ic_register(void)
 			E("%s:Unable to register hx83102d! %d\n", __func__, ret);
 			return ret;
 		}
+#endif
 	}
 
 	return 0;
@@ -5057,8 +5059,10 @@ void himax_ic_unregister(void)
 {
 	if (Is_this_tp_himax112a == 1) {
 		himax_hx83112_exit();
+#if defined(__HIMAX_HX83102_MOD__)
 	} else if (Is_this_tp_hx83102d == 1) {
 		himax_hx83102_exit();
+#endif
 	}
 
 	return;
