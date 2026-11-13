@@ -1341,6 +1341,18 @@ config TOUCHSCREEN_CTS_CHIPSET
 
 source "drivers/input/touchscreen/ICNL9911/Kconfig"
 
+config TOUCHSCREEN_IILITEK_CHIPSET
+        tristate "choice Ilitek_touch chipset"
+        depends on SPI
+        help
+          Say Y here if you have a touchscreen using ILI9882N 
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here
+
+source "drivers/input/touchscreen/ili9882q/Kconfig"
+
 config TOUCHSCREEN_FTS_CHIPSET
 	tristate "choice focaltech_touch chipset"
 	depends on SPI
