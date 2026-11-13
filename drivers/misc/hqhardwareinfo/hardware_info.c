@@ -58,11 +58,10 @@ const char *dfy;
 //int sim2_card_slot = -1;
 int sdcard_gpio_value = -1;
 int nicky_gpio_value = -1;
-#define HARDWARE_INFO_NICO_A "realme C31"
-#define HARDWARE_INFO_NICO_B "narzo 50i Prime"
-#define HARDWARE_INFO_NICO_C "realme C30"
-#define HARDWARE_INFO_NICKY "realme C35"
-#define HARDWARE_INFO_NICKY_A "narzo 50A Prime"
+#define HARDWARE_INFO_VERSION   "realme C11 2021"
+#define HARDWARE_INFO_VERSION_2 "narzo 50i"
+#define HARDWARE_INFO_WCN       "realme C11 2021"
+#define HARDWARE_INFO_WCN_2     "narzo 50i"
 char emmc_buf_size[16];
 static char hw_info_prj_name[15];
 static char fuse_flag[5];
@@ -153,18 +152,9 @@ static int hq_prj_name_setup(void)
     } else {
         return rc;
     }
-    
-    if (strncmp(hw_info_prj_name, "RE549C", 6) == 0){
+
+    if (strncmp(hw_info_prj_name, "216F", 4) == 0) {
         prj_name_flag = 1;
-    }else if (strncmp(hw_info_prj_name, "RE87BAL1", 6) == 0){
-        prj_name_flag = 2;
-    }else if (strncmp(hw_info_prj_name, "RE54D8L1", 6) == 0){
-        prj_name_flag = 3;
-    }else if (strncmp(hw_info_prj_name, "RE549F", 6) == 0){
-        prj_name_flag = 4;
-    }else if (strncmp(hw_info_prj_name, "RE87DB", 6) == 0){
-        prj_name_flag = 5;
-    }
 
     return 0;
 }
@@ -862,68 +852,36 @@ static ssize_t show_ufs_id(struct device *dev, struct device_attribute *attr, ch
 static ssize_t show_wifi(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	if (prj_name_flag == 1) {
-        return sprintf(buf, "wifi name :%s\n", HARDWARE_INFO_NICO_A);
-    } else if (prj_name_flag == 2) {
-        return sprintf(buf, "wifi name :%s\n", HARDWARE_INFO_NICKY);
-    } else if (prj_name_flag == 3) {
-        return sprintf(buf, "wifi name :%s\n", HARDWARE_INFO_NICKY_A);
-    } else if (prj_name_flag == 4) {
-        return sprintf(buf, "wifi name :%s\n", HARDWARE_INFO_NICO_B);
-    } else if (prj_name_flag == 5){
-        return sprintf(buf, "wifi name :%s\n", HARDWARE_INFO_NICO_C);
+        return sprintf(buf, "wifi name :%s\n", HARDWARE_INFO_WCN_2);
     }else{
-        return sprintf(buf, "wifi name :%s\n", "unknown");
+        return sprintf(buf, "wifi name :%s\n", HARDWARE_INFO_WCN);
     }
 }
 
 static ssize_t show_bt(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	if (prj_name_flag == 1) {
-        return sprintf(buf, "bt name :%s\n", HARDWARE_INFO_NICO_A);
-    } else if (prj_name_flag == 2) {
-        return sprintf(buf, "bt name :%s\n", HARDWARE_INFO_NICKY);
-    } else if (prj_name_flag == 3) {
-        return sprintf(buf, "bt name :%s\n", HARDWARE_INFO_NICKY_A);
-    } else if (prj_name_flag == 4) {
-        return sprintf(buf, "bt name :%s\n", HARDWARE_INFO_NICO_B);
-    } else if (prj_name_flag == 5){
-        return sprintf(buf, "bt name :%s\n", HARDWARE_INFO_NICO_C);
+        return sprintf(buf, "bt name :%s\n", HARDWARE_INFO_WCN_2);
     }else{
-        return sprintf(buf, "bt name :%s\n","unknown");
+        return sprintf(buf, "bt name :%s\n",HARDWARE_INFO_WCN);
     }
 }
 
 static ssize_t show_gps(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	if (prj_name_flag == 1) {
-        return sprintf(buf, "gps name :%s\n", HARDWARE_INFO_NICO_A);
-    } else if (prj_name_flag == 2) {
-        return sprintf(buf, "gps name :%s\n", HARDWARE_INFO_NICKY);
-    } else if (prj_name_flag == 3) {
-        return sprintf(buf, "gps name :%s\n", HARDWARE_INFO_NICKY_A);
-    } else if (prj_name_flag == 4) {
-        return sprintf(buf, "gps name :%s\n", HARDWARE_INFO_NICO_B);
-    } else if (prj_name_flag == 5){
-        return sprintf(buf, "gps name :%s\n", HARDWARE_INFO_NICO_C);
+        return sprintf(buf, "gps name :%s\n", HARDWARE_INFO_WCN_2);
     }else{
-        return sprintf(buf, "gps name :%s\n", "unknown");
+        return sprintf(buf, "gps name :%s\n", HARDWARE_INFO_WCN);
     }
 }
 
 static ssize_t show_fm(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	if (prj_name_flag == 1) {
-        return sprintf(buf, "fm name :%s\n", HARDWARE_INFO_NICO_A);
-    } else if (prj_name_flag == 2) {
-        return sprintf(buf, "fm name :%s\n", HARDWARE_INFO_NICKY);
-    } else if (prj_name_flag == 3) {
-        return sprintf(buf, "fm name :%s\n", HARDWARE_INFO_NICKY_A);
-    } else if (prj_name_flag == 4) {
-        return sprintf(buf, "fm name :%s\n", HARDWARE_INFO_NICO_B);
-    } else if (prj_name_flag == 5){
-        return sprintf(buf, "fm name :%s\n", HARDWARE_INFO_NICO_C);
+        return sprintf(buf, "fm name :%s\n", HARDWARE_INFO_WCN_2);
     }else{
-        return sprintf(buf, "fm name :%s\n", "unknown");
+        return sprintf(buf, "fm name :%s\n", HARDWARE_INFO_WCN);
     }
 }
 
@@ -1113,17 +1071,9 @@ static ssize_t store_sar_sensor_2(struct device *dev, struct device_attribute *a
 static ssize_t show_version(struct device *dev, struct device_attribute *attr, char *buf)
 {
     if (prj_name_flag == 1) {
-        return sprintf(buf, "version :%s\n", HARDWARE_INFO_NICO_A);
-    } else if (prj_name_flag == 2) {
-        return sprintf(buf, "version :%s\n", HARDWARE_INFO_NICKY);
-    } else if (prj_name_flag == 3) {
-        return sprintf(buf, "version :%s\n", HARDWARE_INFO_NICKY_A);
-    } else if (prj_name_flag == 4) {
-        return sprintf(buf, "version :%s\n", HARDWARE_INFO_NICO_B);
-    } else if (prj_name_flag == 5){
-        return sprintf(buf, "version :%s\n", HARDWARE_INFO_NICO_C);
+        return sprintf(buf, "version :%s\n", HARDWARE_INFO_VERSION_2);
     }else{
-        return sprintf(buf, "version :%s\n", "unknown");
+        return sprintf(buf, "version :%s\n", HARDWARE_INFO_VERSION);
     }
 }
 #if 0
