@@ -155,6 +155,7 @@ static int hq_prj_name_setup(void)
 
     if (strncmp(hw_info_prj_name, "216F", 4) == 0) {
         prj_name_flag = 1;
+    }
 
     return 0;
 }
