@@ -660,7 +660,7 @@ static void ipd_usb_notifier_init(void)
 
 static int ilitek_plat_probe(void)
 {
-#ifdef __DRM_PANEL_H__
+#if defined(__DRM_PANEL_H__) && !SPRD_SYSFS_SUSPEND_RESUME
 	int ret = 0;
 #endif
 	ILI_INFO("platform probe\n");
@@ -668,7 +668,7 @@ static int ilitek_plat_probe(void)
 #if REGULATOR_POWER
 	ilitek_plat_regulator_power_init();
 #endif
-#ifdef __DRM_PANEL_H__
+#if defined(__DRM_PANEL_H__) && !SPRD_SYSFS_SUSPEND_RESUME
 	ret = ili_v3_drm_check_dt(ilits->dev->of_node);
 	if (ret) {
 		ILI_ERR("[ili_v3_drm_check_dt] parse drm-panel fail");
