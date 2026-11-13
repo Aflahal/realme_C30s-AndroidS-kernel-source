@@ -16,9 +16,6 @@
 #include "lcd/lcd_ILI9882N_boe_mipi_hd.dtsi"
 #include "lcd/lcd_ft8006saa_truly_mipi_hd.dtsi"
 #include "lcd/lcd_ft8722_boe_mipi_hd.dtsi"
-#include "lcd/lcd_nt35695_truly_mipi_fhd.dtsi"
-#include "lcd/lcd_nt35532_truly_mipi_fhd.dtsi"
-#include "lcd/lcd_nt35596_boe_mipi_fhd.dtsi"
 
 #include "battery/RMX3231_batt_1.dtsi"
 #include "battery/RMX3231_batt_2.dtsi"
@@ -129,7 +126,6 @@
 							124872 43 >;
 			};
 
-			/*still need change for bat1 & bat2*/
 			bat: battery {
 				compatible = "simple-battery";
 				charge-full-design-microamp-hours = <4901000>;
@@ -301,7 +297,7 @@
  	id-gpio = <&eic_debounce 4 GPIO_ACTIVE_HIGH>;
  };
  
- /*need change for status and vbus1 not vbus*/
+
 &usb {
 	status = "okay";
 	extcon = <&extcon_gpio>;
@@ -483,7 +479,6 @@
 	sprd-freq = <933 400 233 400 622 933>;
 };
 
-/*need changes*/
 &sprd_hwdvfs {
 	#address-cells = <2>;
 	#size-cells = <0>;
@@ -527,7 +522,7 @@
 		volt-max-step-microvolt = <1200004>;
 	};
 };
-/*need change for key cut*/
+
 &pin_controller {
 	pinctrl-names =
 	/* keyout0 ~ keyout2 */
