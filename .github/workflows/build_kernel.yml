@@ -115,6 +115,7 @@ jobs:
             sprdbt_tty:drivers/modules/kernel5.4/wcn/bluetooth/driver:NONE
             microarray_fp:drivers/modules/kernel5.4/input/fingerprint/microarray:NONE
             sunwave_sw9058g_fp:drivers/modules/kernel5.4/input/fingerprint/sunwave_sw9058g:NONE
+            op_rf_cable_monitor:drivers/modules/kernel5.4/input/misc/op_rf_cable_monitor:NONE
             tcs3430:drivers/modules/kernel5.4/input/misc/tcs3430:NONE
             #sprdwl_ng:drivers/modules/kernel5.4/wcn/wlan:NONE
 
