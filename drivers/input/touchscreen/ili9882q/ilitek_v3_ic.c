@@ -1103,7 +1103,7 @@ out:
 	ilits->chip->fw_ver_info = buf[3];
     if(false==ilits->chip->devinfo_tp_has_init){
        ILI_INFO("fw version is 0x%x.\n", ilits->chip->fw_ver_info);
-       tp_register_devinfo(buf[3]);
+       //tp_register_devinfo(buf[3]);
        //sprintf(Ctp_name,"TXD,ILI9882,FW:0x%x\n",buf[3]);
        ilits->chip->devinfo_tp_has_init = true;
 	}
