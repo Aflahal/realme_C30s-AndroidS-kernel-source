@@ -25,6 +25,5 @@ ilitek-y := ilitek_v3.o \
 		$(fwupdate).o \
 		ilitek_v3_node.o \
 		ilitek_oppo_node.o \
-		touch.o \
 		tp_usb_notifier.o 
 obj-m += ilitek.o
