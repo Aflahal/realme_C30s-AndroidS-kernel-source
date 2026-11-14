@@ -41,6 +41,12 @@
 				fpint-gpios = <&ap_gpio 130 0>;
 			};
 
+			sprd_uid {
+				compatible = "sprd-uid";
+				nvmem-cells = <&uid_start>, <&uid_end>;
+				nvmem-cell-names = "uid_start", "uid_end";
+			};
+
 			hwinfo:HardwareInfo {
 				compatible = "huaqin,hardware_info";
 				sdcard-gpio = <&ap_gpio 9 0>;
