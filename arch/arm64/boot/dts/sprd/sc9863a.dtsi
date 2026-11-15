@@ -175,7 +175,7 @@
 
 	cpufreq_clus0: cpufreq-clus0 {
 		cpufreq-cluster-id = <0>;
-		sprd,multi-version;
+		/* sprd,multi-version; */
 		nvmem-cells = <&dvfs_bin_cpu0>;
 		nvmem-cell-names = "dvfs_bin";
 		sprd,cpufreq-temp-threshold = <65>;
@@ -200,7 +200,7 @@
 
 	cpufreq_clus1: cpufreq-clus1 {
 		cpufreq-cluster-id = <1>;
-		sprd,multi-version;
+		/* sprd,multi-version; */
 		nvmem-cells = <&dvfs_bin_cpu1>;
 		nvmem-cell-names = "dvfs_bin";
 		sprd,cpufreq-temp-threshold = <65>;
@@ -227,7 +227,7 @@
 
 	cpufreq_fcm: cpufreq-fcm {
 		cpufreq-cluster-id = <3>;
-		sprd,multi-version;
+		/* sprd,multi-version; */
 		nvmem-cells = <&dvfs_bin_dsu>;
 		nvmem-cell-names = "dvfs_bin";
 		sprd,cpufreq-temp-threshold = <65>;
