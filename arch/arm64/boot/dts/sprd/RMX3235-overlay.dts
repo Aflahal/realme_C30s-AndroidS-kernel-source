@@ -226,7 +226,7 @@
 				key-volumedown {
 					label = "Volume Down Key";
 					linux,code = <KEY_VOLUMEDOWN>;
-					gpios = <&ap_gpio 2 GPIO_ACTIVE_LOW>;
+					gpios = <&eic_debounce 2 GPIO_ACTIVE_LOW>;
 					debounce-interval = <2>;
 					wakeup-source;
 				};
@@ -353,7 +353,7 @@
 		power-down-gpios = <&ap_gpio 40 0>;
 	};
 };
-/*need changes*/
+
 &i2c3 {
 	#address-cells = <1>;
 	#size-cells = <0>;
