@@ -210,12 +210,19 @@
 				};
 			};
 
-			flash-gpios {
-				compatible = "sprd,flash-ocp8135b";
+			flash-pwm {
+				compatible = "sprd,flash-pwm-ocp8135b";
+				status = "okay";
 				flash-ic = <8135>;
 				pwms = <&pwms 2 50000>;
-				flash-torch-en-gpios = <&ap_gpio 63 0>;
-				flash-en-gpios = <&ap_gpio 62 0>;
+				pinctrl-names = "gpio_pwm", "gpio_62";
+				pinctrl-0 = <&gpio_pwm>;
+				pinctrl-1 = <&gpio_62>;
+				flash-en-gpios = <&ap_gpio 63 0>;
+				flash-enm-gpios = <&ap_gpio 62 0>;
+				board_id1 = <&ap_gpio 34 0>;
+				board_id2 = <&ap_gpio 35 0>;
+				board_id3 = <&ap_gpio 39 0>;
 			};
 
 			gpio-keys {
