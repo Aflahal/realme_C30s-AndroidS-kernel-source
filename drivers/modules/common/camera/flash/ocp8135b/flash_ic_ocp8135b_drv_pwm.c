@@ -338,6 +338,7 @@ static const struct sprd_flash_driver_ops flash_gpio_ops = {
 
 static const struct of_device_id ocp8135b_flash_of_match_table[] = {
     {.compatible = "sprd,flash-pwm-ocp8135b"},
+    { },
 };
 
 static int sprd_flash_ocp8135b_probe(struct platform_device *pdev)
