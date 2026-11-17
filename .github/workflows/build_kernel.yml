@@ -884,57 +884,41 @@ jobs:
           python3 "$TOOLS/avb/avbtool.py" info_image --image "$W/build/socko.img" || echo "::warning::No AVB footer found in socko.img"
           ls -l "$W/build/socko.img"
 
-      - name: Collect selected in-tree modules
-        env:
-          # Paths or globs relative to lib/modules/<release>, space separated.
-          # Entries that were not built are skipped with a warning: depending on the
-          # defconfig these features are built-in (=y) or disabled, so no .ko exists.
-          INTREE_MODULES: >-
-            kernel/fs/incfs/incrementalfs.ko
-            kernel/kernel/kheaders.ko
-            kernel/kernel/trace/*.ko
+      - name: Collect all in-tree kernel modules
         run: |
           set -euo pipefail
-          # A glob that matches nothing expands to an empty list instead of itself
-          shopt -s nullglob
 
-          # Use the real kernel release (e.g. 4.14.200), never a hardcoded one
           KERNEL_VERSION=$(awk '{print $3}' "$GITHUB_WORKSPACE/out/include/generated/utsrelease.h" | tr -d '"')
           SRC="$GITHUB_WORKSPACE/modules_out/lib/modules/$KERNEL_VERSION"
-          DEST="$GITHUB_WORKSPACE/build/modules/lib/modules/$KERNEL_VERSION"
+          DEST="$GITHUB_WORKSPACE/build/modules"
+
           mkdir -p "$DEST"
 
-          cd "$SRC"
-
-          echo "--> Modules installed by this build:"
-          find . -name '*.ko' | sort
-
-          # Split the list without expanding the globs yet
-          read -r -a patterns <<< "$INTREE_MODULES"
-
+          if [ ! -d "$SRC/kernel" ]; then
+              echo "::error::In-tree module directory not found: $SRC/kernel"
+          exit 1
+          fi
+          
           collected=0
-          for pattern in "${patterns[@]}"; do
-            # Unquoted on purpose: the glob is expanded here. A literal path that does
-            # not exist is returned as-is, so every match is checked for existence below.
-            matches=( $pattern )
-            found=0
-            for f in "${matches[@]}"; do
-              if [ -e "$f" ]; then
-                cp --parents "$f" "$DEST/"
-                collected=$((collected + 1))
-                found=1
-              fi
-            done
-            if [ "$found" -eq 0 ]; then
-              echo "[WARN]: not built in this config, skipping: $pattern"
-            fi
-          done
+          
+           while IFS= read -r -d '' f; do
+             base="${f##*/}"
+  
+           if [ -e "$DEST/$base" ]; then
+              echo "::error::Duplicate module filename: $base"
+           exit 1
+           fi
 
-          # Module metadata (uncomment what you need)
-          # cp modules.alias modules.dep modules.softdep "$DEST/"
+            cp "$f" "$DEST/$base"
+           collected=$((collected + 1))
+           done < <(find "$SRC/kernel" -type f -name '*.ko' -print0 | sort -z)
 
-          echo "--> Collected ${collected} module(s):"
-          find "$DEST" -type f | sort
+           echo "--> Collected ${collected} in-tree module(s):"
+           find "$DEST" -maxdepth 1 -type f -name '*.ko' -printf '%f\n' | sort
+
+           if [ "$collected" -eq 0 ]; then
+              echo "::warning::No in-tree modules were found"
+           fi
 
       - name: Publish to GitHub Release
         env:
